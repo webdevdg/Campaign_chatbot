@@ -58,6 +58,34 @@ npm run dev
 
 The app will open at `http://localhost:5173`.
 
+## Deployment (Vercel + Render)
+
+This repo is a monorepo:
+
+- `frontend/`: Vite + React static app (deploy to Vercel)
+- `backend/`: FastAPI API (deploy to Render)
+
+### 1) Deploy the backend to Render
+
+- Create a new **Web Service** on Render from this GitHub repo (you can also use the included `render.yaml` blueprint).
+- Set:
+  - **Build Command**: `pip install -r backend/requirements.txt`
+  - **Start Command**: `cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT`
+- Add environment variables:
+  - `OPENAI_API_KEY`: your OpenAI key
+  - `ALLOWED_ORIGINS`: your Vercel domain, e.g. `https://your-app.vercel.app`
+
+After deploy, copy your backend URL (it will look like `https://<service>.onrender.com`).
+
+### 2) Deploy the frontend to Vercel
+
+- Import this GitHub repo in Vercel.
+- Set **Root Directory** to `frontend/`.
+- Add an environment variable:
+  - `VITE_API_BASE_URL`: your Render backend URL, e.g. `https://<service>.onrender.com`
+
+Redeploy, then your frontend should be able to call the backend in production.
+
 ## Sample Questions
 
 - **Comparison:** "Compare Apex Athletics performance: Week 1 vs Week 4"

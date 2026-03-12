@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "http://localhost:8000";
 
 export default function useChat() {
   const [messages, setMessages] = useState([]);
@@ -54,5 +55,9 @@ export default function useChat() {
     [messages]
   );
 
-  return { messages, isLoading, sendMessage };
+  const resetChat = useCallback(() => {
+    setMessages([]);
+  }, []);
+
+  return { messages, isLoading, sendMessage, resetChat };
 }
