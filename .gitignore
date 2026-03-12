@@ -1,0 +1,39 @@
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Environment variables (never commit secrets)
+.env
+.env.*
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
+
+# Backend outputs
+backend/reports/
+
+# Node / frontend
+node_modules/
+dist/
+dist-ssr/
+.vite/
+
+# IDEs
+.vscode/
+.idea/

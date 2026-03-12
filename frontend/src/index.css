@@ -1,0 +1,165 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+/* ─── Assistant markdown — ChatGPT / Gemini style ─── */
+
+.assistant-markdown {
+  font-size: 0.925rem;
+  line-height: 1.75;
+  color: #374151;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+/* First child should have no top margin */
+.assistant-markdown > *:first-child {
+  margin-top: 0;
+}
+.assistant-markdown > *:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Headings ── */
+.assistant-markdown h1,
+.assistant-markdown h2,
+.assistant-markdown h3,
+.assistant-markdown h4 {
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.4;
+  margin-top: 1.5em;
+  margin-bottom: 0.6em;
+}
+.assistant-markdown h1 { font-size: 1.15rem; }
+.assistant-markdown h2 {
+  font-size: 1.0rem;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid #e5e7eb;
+}
+.assistant-markdown h3 { font-size: 0.95rem; }
+.assistant-markdown h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+
+/* ── Paragraphs ── */
+.assistant-markdown p {
+  margin: 0.8em 0;
+}
+
+/* ── Bold ── */
+.assistant-markdown strong {
+  font-weight: 650;
+  color: #111827;
+}
+
+/* ── Lists ── */
+.assistant-markdown ul,
+.assistant-markdown ol {
+  margin: 0.75em 0;
+  padding-left: 1.5em;
+}
+.assistant-markdown li {
+  margin: 0.4em 0;
+  padding-left: 0.25em;
+}
+.assistant-markdown ul { list-style-type: disc; }
+.assistant-markdown ol { list-style-type: decimal; }
+.assistant-markdown li > ul,
+.assistant-markdown li > ol {
+  margin: 0.25em 0;
+}
+
+/* ── Tables ── */
+.assistant-markdown table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: 0.82rem;
+  margin: 1em 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+.assistant-markdown th {
+  background: #f8fafc;
+  color: #374151;
+  font-weight: 600;
+  padding: 0.6rem 0.85rem;
+  text-align: left;
+  font-size: 0.8rem;
+  border-bottom: 2px solid #e2e8f0;
+}
+.assistant-markdown th:not(:last-child),
+.assistant-markdown td:not(:last-child) {
+  border-right: 1px solid #f1f5f9;
+}
+.assistant-markdown td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #374151;
+}
+.assistant-markdown tr:last-child td {
+  border-bottom: none;
+}
+.assistant-markdown tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+/* ── Code ── */
+.assistant-markdown pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 1rem 1.15rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  font-size: 0.82rem;
+  margin: 1em 0;
+  line-height: 1.6;
+}
+.assistant-markdown code:not(pre code) {
+  background: #f1f5f9;
+  color: #0f172a;
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+/* ── Blockquotes — used for callouts / key takeaways ── */
+.assistant-markdown blockquote {
+  border-left: 3px solid #818cf8;
+  background: #f5f3ff;
+  padding: 0.65rem 1rem;
+  margin: 1em 0;
+  border-radius: 0 0.5rem 0.5rem 0;
+  color: #374151;
+}
+.assistant-markdown blockquote p {
+  margin: 0.3em 0;
+}
+
+/* ── Horizontal rules ── */
+.assistant-markdown hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 1.25em 0;
+}
+
+/* ── Links ── */
+.assistant-markdown a {
+  color: #4f46e5;
+  text-decoration: underline;
+  text-decoration-color: #c7d2fe;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s;
+}
+.assistant-markdown a:hover {
+  text-decoration-color: #4f46e5;
+}
