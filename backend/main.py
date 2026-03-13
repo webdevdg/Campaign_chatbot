@@ -58,6 +58,39 @@ class ReportResponse(BaseModel):
     download_url: str
 
 
+def _summarize_report_params(params: dict) -> str:
+    """Build a readable summary of report params so the LLM can reference them in follow-ups."""
+    parts = [f"**Report type:** {params.get('report_type', 'general')}"]
+
+    if params.get("title"):
+        parts.append(f"**Title:** {params['title']}")
+    if params.get("brand"):
+        b = params["brand"]
+        parts.append(f"**Brand filter:** {b if isinstance(b, str) else ', '.join(b)}")
+    if params.get("channel"):
+        c = params["channel"]
+        parts.append(f"**Channel filter:** {c if isinstance(c, str) else ', '.join(c)}")
+    if params.get("start_date") or params.get("end_date"):
+        parts.append(f"**Date range:** {params.get('start_date', 'start')} to {params.get('end_date', 'end')}")
+    if params.get("group_by"):
+        parts.append(f"**Grouped by:** {params['group_by']}")
+    if params.get("metrics"):
+        parts.append(f"**Metrics:** {', '.join(params['metrics'])}")
+    if params.get("sort_by"):
+        parts.append(f"**Sorted by:** {params['sort_by']} ({params.get('sort_order', 'desc')})")
+    if params.get("top_n"):
+        parts.append(f"**Top N:** {params['top_n']}")
+    if params.get("comparison"):
+        comp = params["comparison"]
+        parts.append(f"**Comparison:** {comp.get('period_1_label', 'Period 1')} vs {comp.get('period_2_label', 'Period 2')}")
+    if params.get("include_sheets"):
+        parts.append(f"**Sheets included:** {', '.join(params['include_sheets'])}")
+    if params.get("no_charts"):
+        parts.append("**Charts:** excluded (tables only)")
+
+    return "[Report Config: " + " | ".join(parts) + "]"
+
+
 # --- Endpoints ---
 
 @app.get("/api/health")
@@ -78,8 +111,9 @@ def chat_endpoint(req: ChatRequest):
                 parameters=params,
             )
             download_url = f"/api/reports/{filename}"
+            params_summary = _summarize_report_params(params)
             return ChatResponse(
-                response="Your report has been generated and is ready for download.",
+                response=f"Your report has been generated and is ready for download.\n\n{params_summary}",
                 report_url=download_url,
             )
 

@@ -137,13 +137,47 @@ def generate_report(report_type: str, parameters: dict) -> str:
     os.makedirs(REPORTS_DIR, exist_ok=True)
     df = _apply_filter(load_data(), parameters)
 
-    wb = Workbook()
+    custom_title = parameters.get("title")
+    include = parameters.get("include_sheets")
+    is_custom = report_type == "custom"
+    no_charts = bool(parameters.get("no_charts"))
 
-    _build_executive_summary(wb, df)
-    _build_channel_performance(wb, df)
-    _build_brand_performance(wb, df)
-    _build_monthly_trends(wb, df)
-    _build_detailed_data(wb, df)
+    if include is None:
+        if is_custom:
+            include = ["summary", "custom", "raw"]
+            if parameters.get("comparison"):
+                include.insert(1, "comparison")
+        else:
+            include = ["summary", "channel", "brand", "trends", "raw"]
+
+    wb = Workbook()
+    first_sheet = True
+
+    def _get_ws(title, tab_color=NAVY):
+        nonlocal first_sheet
+        if first_sheet:
+            ws = wb.active
+            ws.title = title
+            first_sheet = False
+        else:
+            ws = wb.create_sheet(title)
+        ws.sheet_properties.tabColor = tab_color
+        return ws
+
+    if "summary" in include:
+        _build_executive_summary(wb, df, _get_ws, custom_title, no_charts)
+    if "channel" in include:
+        _build_channel_performance(wb, df, _get_ws, no_charts)
+    if "brand" in include:
+        _build_brand_performance(wb, df, _get_ws, no_charts)
+    if "trends" in include:
+        _build_monthly_trends(wb, df, _get_ws, no_charts)
+    if "comparison" in include and parameters.get("comparison"):
+        _build_comparison_sheet(wb, load_data(), parameters, _get_ws)
+    if "custom" in include and is_custom:
+        _build_custom_sheet(wb, df, parameters, _get_ws, no_charts)
+    if "raw" in include:
+        _build_detailed_data(wb, df, _get_ws)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"campaign_report_{timestamp}.xlsx"
@@ -155,10 +189,8 @@ def generate_report(report_type: str, parameters: dict) -> str:
 # Sheet 1: Executive Summary
 # ═══════════════════════════════════════════════
 
-def _build_executive_summary(wb, df):
-    ws = wb.active
-    ws.title = "Executive Summary"
-    ws.sheet_properties.tabColor = NAVY
+def _build_executive_summary(wb, df, _get_ws, custom_title=None, no_charts=False):
+    ws = _get_ws("Executive Summary", NAVY)
 
     total_spend = df["spend_usd"].sum()
     total_revenue = df["revenue_usd"].sum()
@@ -176,7 +208,7 @@ def _build_executive_summary(wb, df):
 
     # Title block
     ws.merge_cells("B2:H2")
-    ws["B2"] = "MEDIA CAMPAIGN PERFORMANCE REPORT"
+    ws["B2"] = custom_title or "MEDIA CAMPAIGN PERFORMANCE REPORT"
     ws["B2"].font = title_font
     ws["B2"].alignment = Alignment(horizontal="left")
 
@@ -238,36 +270,37 @@ def _build_executive_summary(wb, df):
     _write_table(ws, bottom5, 29, 2,
                  currency_cols={"Spend", "Revenue"}, int_cols={"Conversions"}, ratio_cols={"ROAS"})
 
-    # Spend allocation pie chart
-    spend_by_channel = df.groupby("channel")["spend_usd"].sum().reset_index()
-    spend_by_channel.columns = ["Channel", "Spend"]
+    if not no_charts:
+        # Spend allocation pie chart
+        spend_by_channel = df.groupby("channel")["spend_usd"].sum().reset_index()
+        spend_by_channel.columns = ["Channel", "Spend"]
 
-    chart_data_start = 37
-    ws.cell(row=chart_data_start, column=2, value="Channel").font = header_font
-    ws.cell(row=chart_data_start, column=2).fill = header_fill
-    ws.cell(row=chart_data_start, column=3, value="Spend").font = header_font
-    ws.cell(row=chart_data_start, column=3).fill = header_fill
-    for i, (_, row) in enumerate(spend_by_channel.iterrows()):
-        ws.cell(row=chart_data_start + 1 + i, column=2, value=row["Channel"])
-        ws.cell(row=chart_data_start + 1 + i, column=3, value=row["Spend"])
+        chart_data_start = 37
+        ws.cell(row=chart_data_start, column=2, value="Channel").font = header_font
+        ws.cell(row=chart_data_start, column=2).fill = header_fill
+        ws.cell(row=chart_data_start, column=3, value="Spend").font = header_font
+        ws.cell(row=chart_data_start, column=3).fill = header_fill
+        for i, (_, row) in enumerate(spend_by_channel.iterrows()):
+            ws.cell(row=chart_data_start + 1 + i, column=2, value=row["Channel"])
+            ws.cell(row=chart_data_start + 1 + i, column=3, value=row["Spend"])
 
-    pie = PieChart()
-    pie.title = "Spend Allocation by Channel"
-    pie.style = 10
-    data_ref = Reference(ws, min_col=3, min_row=chart_data_start, max_row=chart_data_start + len(spend_by_channel))
-    cats_ref = Reference(ws, min_col=2, min_row=chart_data_start + 1, max_row=chart_data_start + len(spend_by_channel))
-    pie.add_data(data_ref, titles_from_data=True)
-    pie.set_categories(cats_ref)
-    pie.width = 16
-    pie.height = 10
+        pie = PieChart()
+        pie.title = "Spend Allocation by Channel"
+        pie.style = 10
+        data_ref = Reference(ws, min_col=3, min_row=chart_data_start, max_row=chart_data_start + len(spend_by_channel))
+        cats_ref = Reference(ws, min_col=2, min_row=chart_data_start + 1, max_row=chart_data_start + len(spend_by_channel))
+        pie.add_data(data_ref, titles_from_data=True)
+        pie.set_categories(cats_ref)
+        pie.width = 16
+        pie.height = 10
 
-    labels = DataLabelList()
-    labels.showPercent = True
-    labels.showCatName = True
-    labels.showVal = False
-    pie.dataLabels = labels
+        labels = DataLabelList()
+        labels.showPercent = True
+        labels.showCatName = True
+        labels.showVal = False
+        pie.dataLabels = labels
 
-    ws.add_chart(pie, "E20")
+        ws.add_chart(pie, "E20")
 
     ws.column_dimensions["A"].width = 3
     for c in "BCDEFGH":
@@ -280,9 +313,8 @@ def _build_executive_summary(wb, df):
 # Sheet 2: Channel Performance
 # ═══════════════════════════════════════════════
 
-def _build_channel_performance(wb, df):
-    ws = wb.create_sheet("Channel Performance")
-    ws.sheet_properties.tabColor = ACCENT_BLUE
+def _build_channel_performance(wb, df, _get_ws, no_charts=False):
+    ws = _get_ws("Channel Performance", ACCENT_BLUE)
 
     ws.merge_cells("B2:I2")
     ws["B2"] = "CHANNEL PERFORMANCE BREAKDOWN"
@@ -310,37 +342,36 @@ def _build_channel_performance(wb, df):
                            int_cols={"Impressions", "Clicks", "Conversions"},
                            ratio_cols={"ROAS"})
 
-    # ROAS bar chart
-    bar = BarChart()
-    bar.type = "col"
-    bar.title = "ROAS by Channel"
-    bar.style = 10
-    bar.y_axis.title = "ROAS"
-    roas_col_idx = list(ch.columns).index("ROAS") + 2
-    data_ref = Reference(ws, min_col=roas_col_idx, min_row=4, max_row=4 + len(ch))
-    cats_ref = Reference(ws, min_col=2, min_row=5, max_row=4 + len(ch))
-    bar.add_data(data_ref, titles_from_data=True)
-    bar.set_categories(cats_ref)
-    bar.shape = 4
-    bar.width = 18
-    bar.height = 12
-    ws.add_chart(bar, f"B{end_row + 2}")
+    if not no_charts:
+        bar = BarChart()
+        bar.type = "col"
+        bar.title = "ROAS by Channel"
+        bar.style = 10
+        bar.y_axis.title = "ROAS"
+        roas_col_idx = list(ch.columns).index("ROAS") + 2
+        data_ref = Reference(ws, min_col=roas_col_idx, min_row=4, max_row=4 + len(ch))
+        cats_ref = Reference(ws, min_col=2, min_row=5, max_row=4 + len(ch))
+        bar.add_data(data_ref, titles_from_data=True)
+        bar.set_categories(cats_ref)
+        bar.shape = 4
+        bar.width = 18
+        bar.height = 12
+        ws.add_chart(bar, f"B{end_row + 2}")
 
-    # Spend bar chart
-    bar2 = BarChart()
-    bar2.type = "col"
-    bar2.title = "Total Spend by Channel"
-    bar2.style = 10
-    bar2.y_axis.title = "Spend ($)"
-    bar2.y_axis.numFmt = '$#,##0'
-    spend_col_idx = list(ch.columns).index("Spend") + 2
-    data_ref2 = Reference(ws, min_col=spend_col_idx, min_row=4, max_row=4 + len(ch))
-    bar2.add_data(data_ref2, titles_from_data=True)
-    bar2.set_categories(cats_ref)
-    bar2.shape = 4
-    bar2.width = 18
-    bar2.height = 12
-    ws.add_chart(bar2, f"H{end_row + 2}")
+        bar2 = BarChart()
+        bar2.type = "col"
+        bar2.title = "Total Spend by Channel"
+        bar2.style = 10
+        bar2.y_axis.title = "Spend ($)"
+        bar2.y_axis.numFmt = '$#,##0'
+        spend_col_idx = list(ch.columns).index("Spend") + 2
+        data_ref2 = Reference(ws, min_col=spend_col_idx, min_row=4, max_row=4 + len(ch))
+        bar2.add_data(data_ref2, titles_from_data=True)
+        bar2.set_categories(cats_ref)
+        bar2.shape = 4
+        bar2.width = 18
+        bar2.height = 12
+        ws.add_chart(bar2, f"H{end_row + 2}")
 
     ws.column_dimensions["A"].width = 3
     _auto_width(ws, min_width=12)
@@ -351,9 +382,8 @@ def _build_channel_performance(wb, df):
 # Sheet 3: Brand Performance
 # ═══════════════════════════════════════════════
 
-def _build_brand_performance(wb, df):
-    ws = wb.create_sheet("Brand Performance")
-    ws.sheet_properties.tabColor = ACCENT_GREEN
+def _build_brand_performance(wb, df, _get_ws, no_charts=False):
+    ws = _get_ws("Brand Performance", ACCENT_GREEN)
 
     ws.merge_cells("B2:I2")
     ws["B2"] = "BRAND PERFORMANCE COMPARISON"
@@ -397,24 +427,23 @@ def _build_brand_performance(wb, df):
                             int_cols={"Conversions"},
                             ratio_cols={"ROAS"})
 
-    # Stacked bar: Revenue by Brand
-    bar = BarChart()
-    bar.type = "col"
-    bar.title = "Revenue & Spend by Brand"
-    bar.style = 10
-    bar.y_axis.numFmt = '$#,##0'
-    # Use the brand summary for chart
-    spend_col = list(br.columns).index("Spend") + 2
-    rev_col = list(br.columns).index("Revenue") + 2
-    cats = Reference(ws, min_col=2, min_row=5, max_row=4 + len(br))
-    d1 = Reference(ws, min_col=spend_col, min_row=4, max_row=4 + len(br))
-    d2 = Reference(ws, min_col=rev_col, min_row=4, max_row=4 + len(br))
-    bar.add_data(d1, titles_from_data=True)
-    bar.add_data(d2, titles_from_data=True)
-    bar.set_categories(cats)
-    bar.width = 18
-    bar.height = 12
-    ws.add_chart(bar, f"H4")
+    if not no_charts:
+        bar = BarChart()
+        bar.type = "col"
+        bar.title = "Revenue & Spend by Brand"
+        bar.style = 10
+        bar.y_axis.numFmt = '$#,##0'
+        spend_col = list(br.columns).index("Spend") + 2
+        rev_col = list(br.columns).index("Revenue") + 2
+        cats = Reference(ws, min_col=2, min_row=5, max_row=4 + len(br))
+        d1 = Reference(ws, min_col=spend_col, min_row=4, max_row=4 + len(br))
+        d2 = Reference(ws, min_col=rev_col, min_row=4, max_row=4 + len(br))
+        bar.add_data(d1, titles_from_data=True)
+        bar.add_data(d2, titles_from_data=True)
+        bar.set_categories(cats)
+        bar.width = 18
+        bar.height = 12
+        ws.add_chart(bar, f"H4")
 
     ws.column_dimensions["A"].width = 3
     _auto_width(ws, min_width=12)
@@ -425,9 +454,8 @@ def _build_brand_performance(wb, df):
 # Sheet 4: Monthly Trends
 # ═══════════════════════════════════════════════
 
-def _build_monthly_trends(wb, df):
-    ws = wb.create_sheet("Monthly Trends")
-    ws.sheet_properties.tabColor = "E67E22"
+def _build_monthly_trends(wb, df, _get_ws, no_charts=False):
+    ws = _get_ws("Monthly Trends", "E67E22")
 
     ws.merge_cells("B2:I2")
     ws["B2"] = "MONTHLY PERFORMANCE TRENDS"
@@ -493,23 +521,23 @@ def _build_monthly_trends(wb, df):
                               int_cols={"Conversions"},
                               ratio_cols={"ROAS"})
 
-    # Revenue + Spend trend line chart — below all tables
-    line = LineChart()
-    line.title = "Revenue & Spend Trend"
-    line.style = 10
-    line.y_axis.numFmt = '$#,##0'
-    line.width = 18
-    line.height = 12
+    if not no_charts:
+        line = LineChart()
+        line.title = "Revenue & Spend Trend"
+        line.style = 10
+        line.y_axis.numFmt = '$#,##0'
+        line.width = 18
+        line.height = 12
 
-    spend_col = list(monthly.columns).index("Spend") + 2
-    rev_col = list(monthly.columns).index("Revenue") + 2
-    cats = Reference(ws, min_col=2, min_row=5, max_row=4 + len(monthly))
-    d1 = Reference(ws, min_col=spend_col, min_row=4, max_row=4 + len(monthly))
-    d2 = Reference(ws, min_col=rev_col, min_row=4, max_row=4 + len(monthly))
-    line.add_data(d1, titles_from_data=True)
-    line.add_data(d2, titles_from_data=True)
-    line.set_categories(cats)
-    ws.add_chart(line, f"B{weekly_end + 2}")
+        spend_col = list(monthly.columns).index("Spend") + 2
+        rev_col = list(monthly.columns).index("Revenue") + 2
+        cats = Reference(ws, min_col=2, min_row=5, max_row=4 + len(monthly))
+        d1 = Reference(ws, min_col=spend_col, min_row=4, max_row=4 + len(monthly))
+        d2 = Reference(ws, min_col=rev_col, min_row=4, max_row=4 + len(monthly))
+        line.add_data(d1, titles_from_data=True)
+        line.add_data(d2, titles_from_data=True)
+        line.set_categories(cats)
+        ws.add_chart(line, f"B{weekly_end + 2}")
 
     ws.column_dimensions["A"].width = 3
     _auto_width(ws, min_width=12)
@@ -520,9 +548,8 @@ def _build_monthly_trends(wb, df):
 # Sheet 5: Detailed Data
 # ═══════════════════════════════════════════════
 
-def _build_detailed_data(wb, df):
-    ws = wb.create_sheet("Raw Data")
-    ws.sheet_properties.tabColor = MID_GRAY
+def _build_detailed_data(wb, df, _get_ws):
+    ws = _get_ws("Raw Data", MID_GRAY)
 
     detail = df.sort_values(["date", "brand", "channel"]).copy()
     detail["date"] = detail["date"].dt.strftime("%Y-%m-%d")
@@ -558,3 +585,241 @@ def _build_detailed_data(wb, df):
     ws.auto_filter.ref = f"A1:{get_column_letter(len(headers))}{len(detail) + 1}"
     ws.freeze_panes = "A2"
     _auto_width(ws)
+
+
+# ═══════════════════════════════════════════════
+# Sheet: Period Comparison (custom)
+# ═══════════════════════════════════════════════
+
+def _build_comparison_sheet(wb, raw_df, parameters, _get_ws):
+    ws = _get_ws("Period Comparison", "8E44AD")
+
+    comp = parameters["comparison"]
+    p1_start = pd.to_datetime(comp["period_1_start"])
+    p1_end = pd.to_datetime(comp["period_1_end"])
+    p2_start = pd.to_datetime(comp["period_2_start"])
+    p2_end = pd.to_datetime(comp["period_2_end"])
+    p1_label = comp.get("period_1_label", f"{p1_start.date()} to {p1_end.date()}")
+    p2_label = comp.get("period_2_label", f"{p2_start.date()} to {p2_end.date()}")
+
+    df = raw_df.copy()
+    df["date"] = pd.to_datetime(df["date"])
+
+    # Apply brand/channel filters
+    if parameters.get("brand"):
+        brands = parameters["brand"] if isinstance(parameters["brand"], list) else [parameters["brand"]]
+        df = df[df["brand"].isin(brands)]
+    if parameters.get("channel"):
+        channels = parameters["channel"] if isinstance(parameters["channel"], list) else [parameters["channel"]]
+        df = df[df["channel"].isin(channels)]
+
+    df1 = df[(df["date"] >= p1_start) & (df["date"] <= p1_end)]
+    df2 = df[(df["date"] >= p2_start) & (df["date"] <= p2_end)]
+
+    ws.merge_cells("B2:J2")
+    ws["B2"] = f"PERIOD COMPARISON: {p1_label} vs {p2_label}"
+    ws["B2"].font = Font(bold=True, color=NAVY, size=14, name="Calibri")
+
+    def _agg(d):
+        return {
+            "Spend": d["spend_usd"].sum(),
+            "Revenue": d["revenue_usd"].sum(),
+            "Impressions": d["impressions"].sum(),
+            "Clicks": d["clicks"].sum(),
+            "Conversions": d["conversions"].sum(),
+            "ROAS": d["revenue_usd"].sum() / d["spend_usd"].sum() if d["spend_usd"].sum() else 0,
+            "CTR": d["clicks"].sum() / d["impressions"].sum() if d["impressions"].sum() else 0,
+            "CPA": d["spend_usd"].sum() / d["conversions"].sum() if d["conversions"].sum() else 0,
+        }
+
+    # Overall comparison
+    a1, a2 = _agg(df1), _agg(df2)
+    rows = []
+    for metric in a1:
+        v1, v2 = a1[metric], a2[metric]
+        change = (v2 - v1) / v1 if v1 else 0
+        rows.append({"Metric": metric, p1_label: v1, p2_label: v2, "Δ Change": v2 - v1, "Δ %": change})
+    comp_df = pd.DataFrame(rows)
+
+    ws.cell(row=4, column=2, value="OVERALL COMPARISON").font = subheader_font
+    end_row = _write_table(ws, comp_df, 5, 2,
+                           currency_cols={p1_label, p2_label, "Δ Change"},
+                           pct_cols={"Δ %"})
+
+    # By-channel comparison
+    group_col = "channel"
+    if len(df["channel"].unique()) == 1 and len(df["brand"].unique()) > 1:
+        group_col = "brand"
+
+    ws.cell(row=end_row + 2, column=2,
+            value=f"BY {group_col.upper()} COMPARISON").font = subheader_font
+
+    chan_rows = []
+    for name in sorted(df[group_col].unique()):
+        s1 = df1[df1[group_col] == name]
+        s2 = df2[df2[group_col] == name]
+        spend1, spend2 = s1["spend_usd"].sum(), s2["spend_usd"].sum()
+        rev1, rev2 = s1["revenue_usd"].sum(), s2["revenue_usd"].sum()
+        roas1 = rev1 / spend1 if spend1 else 0
+        roas2 = rev2 / spend2 if spend2 else 0
+        chan_rows.append({
+            group_col.title(): name,
+            f"{p1_label} Spend": spend1, f"{p2_label} Spend": spend2,
+            f"{p1_label} Revenue": rev1, f"{p2_label} Revenue": rev2,
+            f"{p1_label} ROAS": roas1, f"{p2_label} ROAS": roas2,
+        })
+    chan_df = pd.DataFrame(chan_rows)
+    spend_cols = {c for c in chan_df.columns if "Spend" in c or "Revenue" in c}
+    roas_cols = {c for c in chan_df.columns if "ROAS" in c}
+    _write_table(ws, chan_df, end_row + 3, 2, currency_cols=spend_cols, ratio_cols=roas_cols)
+
+    ws.column_dimensions["A"].width = 3
+    _auto_width(ws, min_width=12)
+    ws.sheet_view.showGridLines = False
+
+
+# ═══════════════════════════════════════════════
+# Sheet: Custom Grouped Data (custom)
+# ═══════════════════════════════════════════════
+
+METRIC_MAP = {
+    "spend": ("spend_usd", "sum", "Spend", "currency"),
+    "revenue": ("revenue_usd", "sum", "Revenue", "currency"),
+    "impressions": ("impressions", "sum", "Impressions", "int"),
+    "clicks": ("clicks", "sum", "Clicks", "int"),
+    "conversions": ("conversions", "sum", "Conversions", "int"),
+}
+
+DERIVED_METRICS = {"roas", "ctr", "cpa", "cpc", "cpm", "profit"}
+
+
+def _build_custom_sheet(wb, df, parameters, _get_ws, no_charts=False):
+    ws = _get_ws("Custom Analysis", DARK_BLUE)
+
+    group_by = parameters.get("group_by", "brand")
+    requested_metrics = parameters.get("metrics")
+    sort_by = parameters.get("sort_by")
+    sort_order = parameters.get("sort_order", "desc")
+    top_n = parameters.get("top_n")
+
+    group_col_map = {
+        "brand": "brand",
+        "channel": "channel",
+        "campaign": "campaign_name",
+        "month": "month",
+        "week": "week",
+    }
+
+    if group_by in ("month", "week"):
+        if group_by == "month":
+            df["month"] = df["date"].dt.to_period("M").astype(str)
+        else:
+            df["week"] = "W" + df["date"].dt.isocalendar().week.astype(int).astype(str).str.zfill(2)
+
+    actual_col = group_col_map.get(group_by, "brand")
+
+    agg = df.groupby(actual_col).agg(
+        Spend=("spend_usd", "sum"),
+        Revenue=("revenue_usd", "sum"),
+        Impressions=("impressions", "sum"),
+        Clicks=("clicks", "sum"),
+        Conversions=("conversions", "sum"),
+    ).reset_index()
+
+    # Compute derived metrics
+    agg["ROAS"] = agg["Revenue"] / agg["Spend"].replace(0, float("nan"))
+    agg["CTR"] = agg["Clicks"] / agg["Impressions"].replace(0, float("nan"))
+    agg["CPA"] = agg["Spend"] / agg["Conversions"].replace(0, float("nan"))
+    agg["CPC"] = agg["Spend"] / agg["Clicks"].replace(0, float("nan"))
+    agg["CPM"] = (agg["Spend"] / agg["Impressions"].replace(0, float("nan"))) * 1000
+    agg["Profit"] = agg["Revenue"] - agg["Spend"]
+    agg = agg.fillna(0)
+
+    agg = agg.rename(columns={actual_col: group_by.title()})
+
+    # Select metrics
+    all_metric_cols = ["Spend", "Revenue", "Profit", "ROAS", "Impressions", "Clicks",
+                       "CTR", "Conversions", "CPA", "CPC", "CPM"]
+    if requested_metrics:
+        name_map = {
+            "spend": "Spend", "revenue": "Revenue", "profit": "Profit",
+            "roas": "ROAS", "impressions": "Impressions", "clicks": "Clicks",
+            "ctr": "CTR", "conversions": "Conversions", "cpa": "CPA",
+            "cpc": "CPC", "cpm": "CPM",
+        }
+        selected = [name_map[m] for m in requested_metrics if m in name_map]
+        if not selected:
+            selected = all_metric_cols
+    else:
+        selected = all_metric_cols
+
+    keep_cols = [group_by.title()] + [c for c in selected if c in agg.columns]
+    agg = agg[keep_cols]
+
+    # Sort
+    sort_name_map = {
+        "roas": "ROAS", "spend": "Spend", "revenue": "Revenue",
+        "conversions": "Conversions", "cpa": "CPA", "clicks": "Clicks",
+    }
+    if sort_by and sort_name_map.get(sort_by) in agg.columns:
+        agg = agg.sort_values(sort_name_map[sort_by], ascending=(sort_order == "asc"))
+
+    # Top N
+    if top_n and isinstance(top_n, int) and top_n > 0:
+        agg = agg.head(top_n)
+
+    # Determine column types
+    currency_cols = {c for c in agg.columns if c in ("Spend", "Revenue", "Profit", "CPA", "CPC", "CPM")}
+    pct_cols = {c for c in agg.columns if c in ("CTR",)}
+    ratio_cols = {c for c in agg.columns if c in ("ROAS",)}
+    int_cols = {c for c in agg.columns if c in ("Impressions", "Clicks", "Conversions")}
+
+    title_text = parameters.get("title") or f"Custom Analysis — Grouped by {group_by.title()}"
+    ws.merge_cells("B2:J2")
+    ws["B2"] = title_text.upper()
+    ws["B2"].font = Font(bold=True, color=NAVY, size=14, name="Calibri")
+
+    filters_desc = []
+    if parameters.get("brand"):
+        b = parameters["brand"]
+        filters_desc.append(f"Brands: {b if isinstance(b, str) else ', '.join(b)}")
+    if parameters.get("channel"):
+        c = parameters["channel"]
+        filters_desc.append(f"Channels: {c if isinstance(c, str) else ', '.join(c)}")
+    if parameters.get("start_date") or parameters.get("end_date"):
+        filters_desc.append(f"Date range: {parameters.get('start_date', 'start')} to {parameters.get('end_date', 'end')}")
+    if top_n:
+        filters_desc.append(f"Top {top_n} by {sort_by or 'default'}")
+
+    if filters_desc:
+        ws.merge_cells("B3:J3")
+        ws["B3"] = " | ".join(filters_desc)
+        ws["B3"].font = Font(color="888888", size=9, name="Calibri")
+
+    end_row = _write_table(ws, agg, 5, 2,
+                           currency_cols=currency_cols,
+                           pct_cols=pct_cols,
+                           ratio_cols=ratio_cols,
+                           int_cols=int_cols)
+
+    # Add a bar chart for the first numeric metric
+    if not no_charts and len(agg) > 1 and len(selected) > 0:
+        chart_metric = selected[0]
+        chart_col_idx = list(agg.columns).index(chart_metric) + 2
+        bar = BarChart()
+        bar.type = "col"
+        bar.title = f"{chart_metric} by {group_by.title()}"
+        bar.style = 10
+        if chart_metric in currency_cols:
+            bar.y_axis.numFmt = '$#,##0'
+        data_ref = Reference(ws, min_col=chart_col_idx, min_row=5, max_row=5 + len(agg))
+        cats_ref = Reference(ws, min_col=2, min_row=6, max_row=5 + len(agg))
+        bar.add_data(data_ref, titles_from_data=True)
+        bar.set_categories(cats_ref)
+        bar.width = 18
+        bar.height = 12
+        ws.add_chart(bar, f"B{end_row + 2}")
+
+    ws.column_dimensions["A"].width = 3
+    _auto_width(ws, min_width=12)
+    ws.sheet_view.showGridLines = False
