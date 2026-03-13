@@ -29,7 +29,7 @@ export default function ChatWindow({ messages, isLoading, onSend }) {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+      <div className="flex-1 overflow-y-auto scrollbar-hidden px-4 sm:px-6 py-6">
         {messages.length === 0 && !isLoading ? (
           <StarterPrompts onSelect={onSend} />
         ) : (
