@@ -25,6 +25,8 @@ export default function MessageBubble({ message }) {
     );
   }
 
+  const displayContent = message.content.replace(/\n*\[Report Config:.*?\]/g, "").trim();
+
   return (
     <div className="flex gap-3 mb-6">
       <AssistantAvatar />
@@ -35,7 +37,7 @@ export default function MessageBubble({ message }) {
           }`}
         >
           <ReactMarkdown remarkPlugins={[remarkGfm]}>
-            {message.content}
+            {displayContent}
           </ReactMarkdown>
         </div>
         {message.reportUrl && (
